@@ -1,42 +1,106 @@
-pipeline{
+// pipeline{
+//     agent any
+//     environment{
+//         SONAR_HOME= tool "Sonar"
+//     }
+//     stages{
+//         stage("Clone Code from GitHub"){
+//             steps{
+//                 git url: "https://github.com/krishnaacharyaa/wanderlust.git", branch: "devops"
+//             }
+//         }
+//         stage("SonarQube Quality Analysis"){
+//             steps{
+//                 withSonarQubeEnv("Sonar"){
+//                     sh "$SONAR_HOME/bin/sonar-scanner -Dsonar.projectName=wanderlust -Dsonar.projectKey=wanderlust"
+//                 }
+//             }
+//         }
+//         stage("OWASP Dependency Check"){
+//             steps{
+//                 dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dc'
+//                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
+//             }
+//         }
+//         stage("Sonar Quality Gate Scan"){
+//             steps{
+//                 timeout(time: 2, unit: "MINUTES"){
+//                     waitForQualityGate abortPipeline: false
+//                 }
+//             }
+//         }
+//         stage("Trivy File System Scan"){
+//             steps{
+//                 sh "trivy fs --format  table -o trivy-fs-report.html ."
+//             }
+//         }
+//         stage("Deploy using Docker compose"){
+//             steps{
+//                 sh "docker-compose up -d"
+//             }
+//         }
+//     }
+// }
+
+
+// Ashish Jenkins Updated and working file
+
+pipeline {
     agent any
-    environment{
-        SONAR_HOME= tool "Sonar"
+    environment {
+        SONAR_HOME = tool "sonar"
     }
-    stages{
-        stage("Clone Code from GitHub"){
-            steps{
-                git url: "https://github.com/krishnaacharyaa/wanderlust.git", branch: "devops"
+    stages {
+        stage("Clone Code from github") {
+            steps {
+                git url: 'https://github.com/ashish1108-devops/wanderlust-devops.git', branch: 'main'
             }
         }
-        stage("SonarQube Quality Analysis"){
-            steps{
-                withSonarQubeEnv("Sonar"){
-                    sh "$SONAR_HOME/bin/sonar-scanner -Dsonar.projectName=wanderlust -Dsonar.projectKey=wanderlust"
+
+        stage("SonarQube code quality analysis") {
+            steps {
+                withSonarQubeEnv("sonar") {
+                    sh "$SONAR_HOME/bin/sonar-scanner -Dsonar.projectName=Wonderlustpipeline -Dsonar.projectKey=Wonderlustpipeline"
                 }
             }
         }
-        stage("OWASP Dependency Check"){
-            steps{
-                dependencyCheck additionalArguments: '--scan ./', odcInstallation: 'dc'
+
+        stage("OWASP Dependency Check") {
+            steps {
+                withCredentials([string(credentialsId: 'NVD_API_KEY', variable: 'NVD_KEY')]) {
+                    sh "dependency-check --purge --data /var/lib/jenkins/dc-data"
+                    sh """
+                        mkdir -p /var/lib/jenkins/dc-data
+                        dependency-check --project "JenkinsPipeline" \\
+                                         --scan ./ \\
+                                         --data /var/lib/jenkins/dc-data \\
+                                         --nvdApiKey ${NVD_KEY} \\
+                                         --format ALL
+                    """
+                }
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
-        stage("Sonar Quality Gate Scan"){
-            steps{
-                timeout(time: 2, unit: "MINUTES"){
+
+        stage("Sonar Quality Gates Scan") {
+            steps {
+                timeout(time: 2, unit: "MINUTES") {
                     waitForQualityGate abortPipeline: false
                 }
             }
         }
-        stage("Trivy File System Scan"){
-            steps{
-                sh "trivy fs --format  table -o trivy-fs-report.html ."
+
+        stage("Trivy file system Scan") {
+            steps {
+                sh "trivy fs --format table -o trivy-fs-report.html ."
             }
         }
-        stage("Deploy using Docker compose"){
+        stage("Deploy using Docker Compose"){
             steps{
-                sh "docker-compose up -d"
+                sh '''
+                cd wanderlust-devops/
+                docker-compose up -d
+                '''
             }
         }
     }
